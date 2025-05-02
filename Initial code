@@ -1,0 +1,97 @@
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+NEWS_API_KEY = os.getenv("NEWS_API_KEY")
+
+
+import requests
+import openai
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+
+
+NEWS_API_KEY = 'YOUR_NEWS_API_KEY'
+OPENAI_API_KEY = 'YOUR_OPENAI_API_KEY'
+EMAIL_SENDER = 'your_email@example.com'
+EMAIL_PASSWORD = 'your_email_password'
+EMAIL_RECIPIENT = 'recipient@example.com'
+SMTP_SERVER = 'smtp.gmail.com'
+SMTP_PORT = 587
+
+openai.api_key = OPENAI_API_KEY
+
+-
+def fetch_articles():
+    """Fetch articles from a News API."""
+    url = f'https://newsapi.org/v2/top-headlines?country=us&apiKey={NEWS_API_KEY}'
+    response = requests.get(url)
+    articles = response.json().get('articles', [])
+    
+
+    for article in articles[:5]:  # limit to 5 for demo
+        print(f"Headline: {article['title']}")
+        print(f"URL: {article['url']}\n")
+    return articles
+
+
+def summarize_article(article_text):
+    """Use OpenAI API to summarize article content."""
+    prompt = f"Summarize the following news article in 2-3 sentences:\n\n{article_text}"
+    response = openai.Completion.create(
+        engine="text-davinci-003",
+        prompt=prompt,
+        max_tokens=150
+    )
+    summary = response.choices[0].text.strip()
+    return summary
+
+def summarize_articles(articles):
+    """Summarize multiple articles."""
+    summaries = []
+    for article in articles[:5]:  # summarize top 5 articles
+        content = article.get('description') or article.get('content') or article.get('title')
+        summary = summarize_article(content)
+        print(f"Summary for '{article['title']}': {summary}\n")
+        summaries.append((article['title'], summary, article['url']))
+    return summaries
+
+
+def send_email(summaries):
+    """Send an email with the summarized articles."""
+    # Setup email
+    msg = MIMEMultipart()
+    msg['From'] = EMAIL_SENDER
+    msg['To'] = EMAIL_RECIPIENT
+    msg['Subject'] = '📰 Your AI-Powered Daily News Summary'
+
+
+    body = "Here are today's top news summaries:\n\n"
+    for idx, (title, summary, url) in enumerate(summaries, 1):
+        body += f"{idx}. {title}\nSummary: {summary}\nRead more: {url}\n\n"
+
+    msg.attach(MIMEText(body, 'plain'))
+
+
+    try:
+        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+        server.starttls()
+        server.login(EMAIL_SENDER, EMAIL_PASSWORD)
+        server.sendmail(EMAIL_SENDER, EMAIL_RECIPIENT, msg.as_string())
+        server.quit()
+        print("✅ Email sent successfully!")
+    except Exception as e:
+        print(f"❌ Failed to send email: {e}")
+
+if __name__ == "__main__":
+    print("Step 1: Fetching Articles...")
+    articles = fetch_articles()
+
+    print("\nStep 2: Summarizing Articles...")
+    summaries = summarize_articles(articles)
+
+    print("\nStep 3: Sending Email...")
+    send_email(summaries)
